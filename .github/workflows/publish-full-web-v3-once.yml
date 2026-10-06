@@ -1,0 +1,53 @@
+name: Publish Full Web v3 once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-full-web-v3-once.yml
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified Full Web artifact
+        env:
+          ARTIFACT_URL: 'https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-3bf0-8210-85bf-0d133ae732bb/raw?se=2026-10-06T02%3A22%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=a3ad2eb6-1234-55f1-ba6a-f0ee3b1820a7&skoid=c69179d1-5b5d-430f-afa3-b9bdcf9d6497&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-06T02%3A04%3A49Z&ske=2026-10-07T02%3A04%3A49Z&sks=b&skv=2026-02-06&sig=IQiHrdmu9bSb5r%2B9F5i/9dyIwBukN8Yzu4Tun8z5EJ0%3D'
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "$ARTIFACT_URL" -o /tmp/fullweb-artifact.zip
+          echo '63d5612c90fca359c1f1a439428479d4bdc44ba4849dbbf693471c53408453e5  /tmp/fullweb-artifact.zip' | sha256sum -c -
+          mkdir -p /tmp/artifact /tmp/site
+          unzip -q /tmp/fullweb-artifact.zip -d /tmp/artifact
+          inner=$(find /tmp/artifact -type f -name '*.zip' | head -n 1)
+          test -n "$inner"
+          unzip -q "$inner" -d /tmp/site
+          test -f /tmp/site/index.html
+          test -f /tmp/site/sw.js
+          test -f /tmp/site/manifest.webmanifest
+          test -f /tmp/site/codec/excel-v8.wasm
+          find /tmp/site/assets -maxdepth 1 -type f -name '*.wasm' | grep -q .
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload Full Web site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
